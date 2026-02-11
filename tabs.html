@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Store Inventory</title>
+
+<style>
+body{
+  margin:0;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background:#f2f2f2;
+}
+.container{
+  display:flex;
+  height:100vh;
+}
+.sidebar{
+  width:240px;
+  background:#fff;
+  padding:15px;
+  overflow-y:auto;
+  border-right:1px solid #ccc;
+}
+.tab{
+  padding:12px;
+  margin-bottom:8px;
+  cursor:pointer;
+  border-radius:8px;
+  border:1px solid #3F162A;
+  background:#e6f2fb;
+  font-weight:bold;
+  font-size: 12px;
+}
+.tab.active{
+  background:#3F162A;
+  color:#fff;
+}
+.content{
+  flex:1;
+  padding:25px;
+  overflow:auto;
+}
+.header-area {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+#title {
+  font-size: 22px;
+  color: #333;
+}
+
+/* --- IMPROVED TABLE STYLING --- */
+table{
+  width: 100%;
+  border-collapse: collapse;
+  background:#fff;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+th, td{
+  border: 1px solid #ddd;
+  padding: 12px 15px; /* Padding badha di taaki wide lage */
+  text-align: left;
+  font-size: 13px;
+  white-space: nowrap; 
+}
+th{
+  background: #4e86e4;
+  color: #fff;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Specific Column Adjustments */
+th:nth-child(3), td:nth-child(3) { 
+  min-width: 250px; /* Model column ko wide kiya */
+}
+th:nth-child(4), td:nth-child(4) { 
+  min-width: 100px; /* QTY column ko space di */
+  text-align: right; /* Numbers right-align acche lagte hain */
+}
+th:nth-child(5), td:nth-child(5) { 
+  width: 80px;
+  text-align: center;
+}
+
+tr:nth-child(even) {
+  background-color: #f9f9f9; /* Zebra stripes for better reading */
+}
+
+.neg{
+  color: #d9534f;
+  font-weight:bold;
+}
+
+.export-btn {
+  background: #3F162A;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 12px;
+  transition: 0.3s;
+}
+.export-btn:hover {
+  background: #5a203d;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+  <div class="sidebar" id="tabs"></div>
+  <div class="content">
+    <div class="header-area">
+      <h2 id="title">Loading...</h2>
+      <button class="export-btn" onclick="exportToCSV()">📥 EXPORT DATA</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Brand</th>
+          <th>Model</th>
+          <th>Qty</th>
+          <th>Unit</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbzMuSQ2ZByv82_a_1ihjcT0aJEHsMrhkaH2rQqUkLQHd6UuNm1TMjaMANjql2luPheZ/exec";
+
+let data = [];
+let categories = [];
+let currentCategory = "";
+
+fetch(API_URL)
+  .then(r => r.json())
+  .then(json => {
+    data = json;
+    categories = [...new Set(data.map(r => r.category))].sort();
+    buildTabs();
+    if(categories.length > 0) render(categories[0]);
+  });
+
+function buildTabs(){
+  const tabBox = document.getElementById("tabs");
+  tabBox.innerHTML = "";
+  categories.forEach((cat, i) => {
+    const div = document.createElement("div");
+    div.className = "tab" + (i===0 ? " active":"");
+    div.innerText = cat;
+    div.onclick = () => {
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      div.classList.add("active");
+      render(cat);
+    };
+    tabBox.appendChild(div);
+  });
+}
+
+function render(category){
+  currentCategory = category;
+  document.getElementById("title").innerText = category;
+  const tbody = document.getElementById("tbody");
+  
+  const filteredData = data.filter(r => r.category === category);
+  
+  const htmlRows = filteredData.map(r => {
+    // Decimal fix for clean numbers
+    let displayQty = isNaN(r.qty) ? r.qty : Number(r.qty).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+
+    return `
+      <tr>
+        <td>${r.category}</td>
+        <td>${r.brand}</td>
+        <td>${r.model}</td>
+        <td class="${r.qty < 0 ? 'neg':''}">
+          ${displayQty}
+        </td>
+        <td>${r.unit}</td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.innerHTML = htmlRows;
+}
+
+function exportToCSV() {
+  if (!currentCategory || data.length === 0) return;
+  const filteredData = data.filter(r => r.category === currentCategory);
+  const headers = ["CATEGORY", "BRAND", "MODEL", "QTY", "UNIT"];
+  const csvContent = [
+    headers.join(','),
+    ...filteredData.map(r => [`"${r.category}"`,`"${r.brand}"`,`"${r.model}"`,r.qty,`"${r.unit}"`].join(','))
+  ].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `Inventory_${currentCategory}.csv`);
+  link.click();
+}
+</script>
+
+</body>
+</html>
