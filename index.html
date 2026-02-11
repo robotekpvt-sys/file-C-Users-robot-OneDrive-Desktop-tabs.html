@@ -71,9 +71,9 @@ th{
   text-transform: uppercase;
 }
 
-/* Updated Column widths */
-th:nth-child(2), td:nth-child(2) { width: 150px; } /* MODEL */
-th:nth-child(3), td:nth-child(3) { min-width: 250px; } /* ITEMS */
+/* Column Widths Adjustments */
+th:nth-child(1), td:nth-child(1) { width: 180px; } /* MODEL */
+th:nth-child(2), td:nth-child(2) { min-width: 300px; } /* ITEMS */
 
 tr:nth-child(even) {
   background-color: #f9f9f9;
@@ -113,8 +113,9 @@ tr:nth-child(even) {
     <table>
       <thead>
         <tr>
-          <th>Category</th>
-          <th>MODEL</th> <th>ITEMS</th> <th>Qty</th>
+          <th>MODEL</th> 
+          <th>ITEMS</th>
+          <th>Qty</th>
           <th>Unit</th>
         </tr>
       </thead>
@@ -167,8 +168,9 @@ function render(category){
 
     return `
       <tr>
-        <td>${r.category}</td>
-        <td>${r.brand}</td> <td>${r.model}</td> <td class="${r.qty < 0 ? 'neg':''}">
+        <td>${r.brand}</td> 
+        <td>${r.model}</td> 
+        <td class="${r.qty < 0 ? 'neg':''}">
           ${displayQty}
         </td>
         <td>${r.unit}</td>
@@ -182,10 +184,10 @@ function render(category){
 function exportToCSV() {
   if (!currentCategory || data.length === 0) return;
   const filteredData = data.filter(r => r.category === currentCategory);
-  const headers = ["CATEGORY", "MODEL", "ITEMS", "QTY", "UNIT"];
+  const headers = ["MODEL", "ITEMS", "QTY", "UNIT"]; // CSV se bhi Category hata di
   const csvContent = [
     headers.join(','),
-    ...filteredData.map(r => [`"${r.category}"`,`"${r.brand}"`,`"${r.model}"`,r.qty,`"${r.unit}"`].join(','))
+    ...filteredData.map(r => [`"${r.brand}"`,`"${r.model}"`,r.qty,`"${r.unit}"`].join(','))
   ].join('\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
