@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dispatch FG Store</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; }
+        .container { width: 1100px; margin: 20px auto; border: 1px solid black; background: white; padding-bottom: 20px; }
+        .header { background: #c69c6d; text-align: center; font-weight: bold; padding: 10px; font-size: 20px; }
+        .sub-header { text-align: center; padding: 5px; border-bottom: 1px solid black; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid black; padding: 8px; text-align: center; }
+        th { background: #e8e1d5; font-size: 13px; }
+        input, select { width: 95%; border: none; text-align: center; background: transparent; font-size: 14px; }
+        input:focus { background: #fffdfa; outline: none; }
+        .add-btn { background-color: #c69c6d; color: black; border: 1px solid black; padding: 8px 20px; cursor: pointer; font-weight: bold; margin: 15px; border-radius: 4px; }
+        .delete-btn { color: white; background-color: #d9534f; border: none; padding: 4px 8px; cursor: pointer; border-radius: 3px; font-weight: bold; }
+        .footer { margin-top: 30px; display: flex; justify-content: space-between; padding: 30px 20px; }
+        .avail-stock { color: blue; font-size: 14px; font-weight: bold; }
+        .submit-btn { background: linear-gradient(90deg, #28a745, #218838); color: white; font-size: 16px; font-weight: bold; padding: 12px 30px; border: none; border-radius: 6px; cursor: pointer; transition: 0.3s; }
+        .print-btn { background: linear-gradient(90deg, #007bff, #0056b3); color: white; font-size: 16px; font-weight: bold; padding: 12px 30px; border: none; border-radius: 6px; cursor: pointer; transition: 0.3s; }
+        .action-buttons { margin-top: 20px; display: flex; justify-content: center; gap: 20px; }
+        @media print {
+            th:nth-child(6), td:nth-child(6), /* Avail Stock */
+            th:nth-child(8), td:nth-child(8), /* Action */
+            .add-btn, .submit-btn, .print-btn { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">DISPATCH (FG STORE)</div>
+    <div class="sub-header">Company: <b>RB</b></div>
+
+    <table>
+        <tr>
+            <td><b>Slip Num:</b> <span id="slip">FG01</span></td>
+            <td><b>Date:</b> <span id="date_header"></span></td>
+        </tr>
+    </table>
+
+    <table id="main-table">
+        <thead>
+            <tr>
+                <th>SR</th>
+                <th style="width: 200px;">MODEL</th>
+                <th>Std Box Qty</th>
+                <th>Num Of Box</th>
+                <th>Total Qty</th>
+                <th>Avail Stock</th>
+                <th>Remark</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="data-body"></tbody>
+    </table>
+
+    <button type="button" class="add-btn" onclick="addNewRow()">+ Add Model</button>
+
+    <div class="footer">
+        <div>Issuer Sign _________________</div>
+        <div>Receiver Sign _________________</div>
+    </div>
+
+    <div class="action-buttons">
+        <button type="button" class="submit-btn" onclick="submitForm()">Submit Dispatch</button>
+        <button type="button" class="print-btn" onclick="window.print()">Print</button>
+    </div>
+</div>
+
+<script>
+    let masterData = [];
+    // 1. APNA NAYA DEPLOYED URL YAHAN DALEIN
+    const webAppUrl = "https://script.google.com/macros/s/AKfycbzyviiAse7ez38mDkYfOjdlG9maqKh9hQB_8MHY80SCIvSJ_g4HYErkaJ-B6Tn-oaz0/exec"; 
+
+    window.onload = function() {
+        // Date set karein
+        document.getElementById("date_header").innerText = new Date().toLocaleDateString("en-GB");
+
+        // Fetching Data (Models + Next Slip Number) from Google Sheets
+        fetch(webAppUrl)
+        .then(res => res.json())
+        .then(data => {
+            // Models load karein
+            masterData = data.items ? data.items : data; 
+            
+            // --- AUTO INCREMENT LOGIC ---
+            // Agar backend se naya slip number aaya hai toh usey screen par dikhayein
+            if(data.nextSlip) {
+                document.getElementById("slip").innerText = data.nextSlip;
+            }
+            
+            console.log("Master Data Loaded. Next Slip:", data.nextSlip);
+            
+            // Initial 5 rows
+            for(let i=0; i<5; i++) {
+                addNewRow();
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("❌ Data load nahi ho raha!");
+        });
+    };
+
+    function addNewRow() {
+        const tbody = document.getElementById("data-body");
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td class="sr-no"></td>
+            <td><select class="model-select" onchange="updateRow(this)"><option value="">Select Model</option></select></td>
+            <td><input type="number" class="std-box" oninput="calculateRow(this)" value="0"></td>
+            <td><input type="number" class="num-box" oninput="calculateRow(this)" placeholder="0"></td>
+            <td class="total-qty" style="font-weight:bold;">0</td>
+            <td class="avail-stock">0</td>
+            <td><input type="text" placeholder="..."></td>
+            <td><button class="delete-btn" onclick="deleteRow(this)">X</button></td>`;
+        tbody.appendChild(tr);
+        
+        fillDropdown(tr.querySelector(".model-select"));
+        updateSRNumbers();
+    }
+
+    function fillDropdown(select) {
+        select.innerHTML = '<option value="">Select Model</option>';
+        masterData.forEach(item => {
+            let opt = document.createElement("option");
+            opt.value = item.model;
+            opt.text = item.model;
+            select.appendChild(opt);
+        });
+    }
+
+    function updateRow(selectElement) {
+        const row = selectElement.closest("tr");
+        const item = masterData.find(x => x.model === selectElement.value);
+        if(item) {
+            row.querySelector(".std-box").value = item.standardBox;
+            row.querySelector(".avail-stock").innerText = item.stock;
+            if(item.stock <= 0) {
+                row.querySelector(".avail-stock").style.color = "red";
+            } else {
+                row.querySelector(".avail-stock").style.color = "blue";
+            }
+            calculateRow(row.querySelector(".std-box"));
+        } else {
+            row.querySelector(".std-box").value = 0;
+            row.querySelector(".avail-stock").innerText = 0;
+            row.querySelector(".total-qty").innerText = 0;
+        }
+    }
+
+    function calculateRow(element) {
+        const row = element.closest("tr");
+        const std = parseFloat(row.querySelector(".std-box").value) || 0;
+        const num = parseFloat(row.querySelector(".num-box").value) || 0;
+        row.querySelector(".total-qty").innerText = (std * num);
+    }
+
+    function deleteRow(btn) { 
+        btn.closest("tr").remove(); 
+        updateSRNumbers(); 
+    }
+
+    function updateSRNumbers() { 
+        document.querySelectorAll(".sr-no").forEach((td, i) => td.innerText = i + 1); 
+    }
+
+    function submitForm() {
+        let rowsData = [];
+        let hasError = false;
+        
+        const slipNum = document.getElementById("slip").innerText;
+
+        document.querySelectorAll("#data-body tr").forEach(row => {
+            const model = row.querySelector(".model-select").value;
+            if(model) {
+                const stdBox = parseInt(row.querySelector(".std-box").value) || 0;
+                const numBox = parseInt(row.querySelector(".num-box").value) || 0;
+                const totalQty = parseInt(row.querySelector(".total-qty").innerText) || 0;
+                const stock = parseInt(row.querySelector(".avail-stock").innerText) || 0;
+                const remark = row.querySelector("input[type=text]").value;
+
+                if(totalQty > stock) {
+                    alert("❌ Model " + model + " ka stock kam hai!");
+                    hasError = true;
+                }
+                rowsData.push({model, stdBox, numBox, totalQty, stock, remark});
+            }
+        });
+
+        if(hasError) return;
+        if(rowsData.length === 0) { alert("Kam se kam ek model select karein!"); return; }
+
+        fetch(webAppUrl, {
+            method: "POST",
+            body: JSON.stringify({
+                date: document.getElementById("date_header").innerText,
+                slip_num: slipNum,
+                rows: rowsData
+            })
+        })
+        .then(res => res.text())
+        .then(msg => {
+            alert("✅ " + msg);
+            location.reload(); 
+        })
+        .catch(err => alert("❌ Submit fail: " + err));
+    }
+</script>
